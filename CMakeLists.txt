@@ -20,6 +20,11 @@ cuda_add_executable(
 main
 main.cu
 )
+
+cuda_add_executable(
+incrementArray
+incrementArray.cu
+)
  
 # For linking ...
 # Specify target & libraries to link it with
