@@ -63,18 +63,18 @@ int main(void){
 
     // float M[width*width], N[width*width], P[width*width];
 	for(int i = 0; i < (width*width) ; i++) {
-        M[i] = 5.f;
-        N[i] = 5.f;
+        M[i] = i;
+        N[i] = width*width - i;
         P[i] = 0.f;
-        printf("%d %d %d\n", M[i], N[i], P[i]);
+        // printf("%3f %3f %3f\n", M[i], N[i], P[i]);
     }
 
     matriksMul(M, N, P, width);
 
     for(int i = 0; i < (width*width) ; i++) {
-        printf("%d", P[i]);
+        printf("%f", P[i]);
         if( i%width ==0){
-        	 // printf("\n");
+        	 printf("\n");
         }
     }
 
