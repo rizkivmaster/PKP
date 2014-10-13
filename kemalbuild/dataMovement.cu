@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <cuda.h>
 
-
 void checkCudaError(cudaError_t errorCode)
 {
     if (errorCode != cudaSuccess)
