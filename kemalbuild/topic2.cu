@@ -1,10 +1,9 @@
 #include <stdio.h>
+#include <assert.h>
+#include <string.h>
 #include <cuda.h>
 
-#define GRID_ROW_SIZE 3
-#define GRID_COL_SIZE 3
-#define BLOCK_ROW_SIZE 2
-#define BLOCK_COL_SIZE 2
+#define BLOCK_SIZE 4
 
 void checkCudaError(cudaError_t errorCode)
 {
@@ -21,19 +20,28 @@ void incrementArrayOnHost(float *a, int size, int k)
 
 __global__ void kernel(float *a, int size)
 {
-    int blockRowOffset = blockIdx.x*gridDim.y*blockDim.x*blockDim.y;
-    int blockColOffset = blockIdx.y*blockDim.x*blockDim.y;
-    int threadRowOffset = threadIdx.x*blockDim.y;
-    int threadColOffset = threadIdx.y;
-    int idx = blockRowOffset + blockColOffset + threadRowOffset + threadColOffset;
-    a[idx] = gridDim.x;
+    int numBlockThread = blockDim.x*blockDim.y*blockDim.z;
+
+    int blockRowOffset = blockIdx.x*gridDim.y*gridDim.z*numBlockThread;
+    int blockColOffset = blockIdx.y*gridDim.z*numBlockThread;
+    int blockDepOffset = blockIdx.z*numBlockThread;
+    int blockPos = blockRowOffset + blockColOffset + blockDepOffset;
+
+    int threadRowOffset = threadIdx.x*blockDim.y*blockDim.z;
+    int threadColOffset = threadIdx.y*blockDim.z;
+    int threadDepOffset = threadIdx.z;
+    int threadPos = threadRowOffset + threadColOffset + threadDepOffset;
+    int idx = blockPos + threadPos;
+
+    if (idx < size)
+        a[idx] += 1.0;
 }
 
 int main(void)
 {
     float *ha, *hb;     // host data
     float *da;          // device data
-    int N = GRID_ROW_SIZE * GRID_COL_SIZE * BLOCK_ROW_SIZE * BLOCK_COL_SIZE;
+    int N = 1000000;
     int nbytes, i;
 
     nbytes = N * sizeof(float);
@@ -42,19 +50,23 @@ int main(void)
     checkCudaError(cudaMalloc((void **) &da, nbytes));
 
     for (i = 0; i < N; i++)
-        ha[i] = 0.0;
+        ha[i] = 100.0 + i;
 
     checkCudaError(cudaMemcpy(da, ha, nbytes, cudaMemcpyHostToDevice));
 
-    // incrementArrayOnHost(ha, N, 1.0);
-    dim3 grid(GRID_ROW_SIZE, GRID_COL_SIZE);
-    dim3 block(BLOCK_ROW_SIZE, BLOCK_COL_SIZE);
+    incrementArrayOnHost(ha, N, 1.0);
+    int nblocks = N/BLOCK_SIZE + (N%BLOCK_SIZE==0?0:1);
+    dim3 grid(nblocks);
+    dim3 block(BLOCK_SIZE);
     kernel<<<grid, block>>>(da, N);
 
     checkCudaError(cudaMemcpy(hb, da, nbytes, cudaMemcpyDeviceToHost));
 
     for (i = 0; i < N; i++)
-        printf("hb[%d] = %f\n", i, hb[i]);
+        assert(ha[i] == hb[i]);
+
+    for (i = 0; i < 10; i++)
+        printf("%f %f\n", ha[i], hb[i]);
 
     return 0;
 }
