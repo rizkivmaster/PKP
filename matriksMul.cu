@@ -6,14 +6,13 @@
 #include <iostream>
 
 __global__ void matmul(float* matA, float* matB, float* matC, int width){
-	float pVal = 0;
-	for(int i=0; i<width; ++i){
-		float elementMatA = matA[threadIdx.y*width+i];
-		float elementMatB = matB[i*width+threadIdx.x];
-		pVal += elementMatA * elementMatB; 
-	}
-
-	matC[threadIdx.y*width+threadIdx.x] = pVal;
+   float pVal = 0;
+   for(int i=0; i<width; ++i){
+      float elementMatA = matA[threadIdx.y*width+i];
+      float elementMatB = matB[i*width+threadIdx.x];
+      pVal += elementMatA * elementMatB; 
+   }
+   matC[threadIdx.y*width+threadIdx.x] = pVal;
 }
 
 void matriksMul(float* mA, float* mB, float* mC, int width){
@@ -31,15 +30,15 @@ void matriksMul(float* mA, float* mB, float* mC, int width){
     fprintf(stderr, "cudaMemcpy (ERRCODE %d)\n", cudaError);
     cudaMemcpy(a_d, mA, size , cudaMemcpyHostToDevice );
 
-	//allocate dan copy matriks b
+    //allocate dan copy matriks b
     cudaMalloc((void**)&b_d, size);
     cudaMemcpy(b_d, mB, size , cudaMemcpyHostToDevice );
 
     //allocate memory to device c
     cudaMalloc((void**)&c_d, size);
 
-    dim3 dimGrid(1, 1);
-   	dim3 dimBlock(width, width);
+   dim3 dimGrid(1, 1);
+   dim3 dimBlock(width, width);
     
     matmul<<<dimGrid,dimBlock>>>(a_d,b_d,c_d,width);
 
