@@ -80,9 +80,10 @@ __global__ void multiplySquareSerializedMatOnDevice(float *C, float *A, float *B
     }
 }
 
-long long convertToNsec(long long sec, int nsec)
+long long convertToNsec(struct timespec ts)
 {
-    return sec * NANO + nsec;
+    long long tmp = (long long) ts.tv_sec*NANO + ts.tv_nsec;
+    return tmp;
 }
 
 int main(void)
@@ -133,7 +134,7 @@ int main(void)
     clock_gettime(CLOCK_MONOTONIC, &ts_end);
 
     // compute elapsed time
-    elapsedTime = convertToNsec(ts_end.tv_sec, ts_end.tv_nsec) - convertToNsec(ts_start.tv_sec, ts_start.tv_nsec);
+    elapsedTime = convertToNsec(ts_end) - convertToNsec(ts_start);
     printf("CPU time: %f\n", (float) elapsedTime / NANO);
 
     // multiply matrix on device
@@ -144,7 +145,7 @@ int main(void)
     clock_gettime(CLOCK_MONOTONIC, &ts_end);
 
     // compute elapsed time
-    elapsedTime = convertToNsec(ts_end.tv_sec, ts_end.tv_nsec) - convertToNsec(ts_start.tv_sec, ts_start.tv_nsec);
+    elapsedTime = convertToNsec(ts_end) - convertToNsec(ts_start);
     printf("CUDA time: %f\n", (float) elapsedTime / NANO);
 
     // copy from device to host
