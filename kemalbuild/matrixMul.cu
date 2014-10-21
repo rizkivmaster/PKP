@@ -4,8 +4,8 @@
 #include <time.h>
 #include <cuda.h>
 
-#define N 100
-#define BLOCK_SIZE 1024
+#define N 1500
+#define TILE_SIZE 4
 #define NANO 1000000000
 
 void checkCudaError(cudaError_t errorCode)
@@ -68,18 +68,15 @@ void multiplySquareMatOnHost(float **C, float **A, float **B, int size)
 
 __global__ void multiplySquareSerializedMatOnDevice(float *C, float *A, float *B, int size)
 {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < size * size)
+    int i = blockIdx.x*blockDim.x + threadIdx.x;
+    int j = blockIdx.y*blockDim.y + threadIdx.y;
+    if (i < size && j < size)
     {
-        int i = idx / size;
-        int j = idx % size;
         int k;
+        float sum = 0.0;
         for (k = 0; k < size; k++)
-        {
-            int idxa = i * size + k;
-            int idxb = k * size + j;
-            C[idx] += A[idxa] * B[idxb];
-        }
+            sum += A[i*size+k] * B[k*size+j];
+        C[i*size+j] = sum;
     }
 }
 
@@ -140,8 +137,8 @@ int main(void)
     printf("CPU time: %f\n", (float) elapsedTime / NANO);
 
     // multiply matrix on device
-    int gridSize = (N*N/BLOCK_SIZE) + ((N*N)%BLOCK_SIZE>0?1:0);
-    dim3 grid(gridSize), block(BLOCK_SIZE);
+    int gridSize = (N/TILE_SIZE) + (N%TILE_SIZE>0?1:0);
+    dim3 grid(gridSize, gridSize), block(TILE_SIZE, TILE_SIZE);
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
     multiplySquareSerializedMatOnDevice<<<grid, block>>>(dc, da, db, N);
     clock_gettime(CLOCK_MONOTONIC, &ts_end);
