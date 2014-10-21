@@ -59,11 +59,14 @@ void printSquareMat(float **mat, int size)
 void multiplySquareMatOnHost(float **C, float **A, float **B, int size)
 {
     int i, j, k;
-    memset(C[0], 0, size * size * sizeof(float));
     for (i = 0; i < size; i++)
         for (j = 0; j < size; j++)
+        {
+            float sum = 0.0;
             for (k = 0; k < size; k++)
-                C[i][j] += A[i][k] * B[k][j];
+                sum += A[i][k] * B[k][j];
+            C[i][j] = sum;
+        }
 }
 
 __global__ void multiplySquareSerializedMatOnDevice(float *C, float *A, float *B, int size)
@@ -106,12 +109,6 @@ int main(void)
     checkCudaError(cudaMalloc((void **) &db, nbytes));
     checkCudaError(cudaMalloc((void **) &dc, nbytes));
 
-    // initialize all values to zero
-    memset(ha[0], 0, nbytes);
-    memset(hb[0], 0, nbytes);
-    memset(hc[0], 0, nbytes);
-    memset(hd[0], 0, nbytes);
-
     // set values in ha randomly
     for (i = 0; i < N; i++)
         for (j = 0; j < N; j++)
@@ -126,7 +123,6 @@ int main(void)
     // copy from host to device
     checkCudaError(cudaMemcpy(da, ha[0], nbytes, cudaMemcpyHostToDevice));
     checkCudaError(cudaMemcpy(db, hb[0], nbytes, cudaMemcpyHostToDevice));
-    checkCudaError(cudaMemcpy(dc, hc[0], nbytes, cudaMemcpyHostToDevice));
 
     // multiply matrix on host
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
@@ -156,10 +152,11 @@ int main(void)
         for (j = 0; j < N; j++)
             assert(hc[i][j] == hd[i][j]);
 
+    // free memory
     freeSquareMatOnHost(ha);
     freeSquareMatOnHost(hb);
     freeSquareMatOnHost(hc);
-
+    freeSquareMatOnHost(hd);
     cudaFree(da);
     cudaFree(db);
     cudaFree(dc);
