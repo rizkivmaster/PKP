@@ -6,6 +6,7 @@
 
 #define N 100
 #define BLOCK_SIZE 1024
+#define NANO 1000000000
 
 void checkCudaError(cudaError_t errorCode)
 {
@@ -82,12 +83,19 @@ __global__ void multiplySquareSerializedMatOnDevice(float *C, float *A, float *B
     }
 }
 
+long long convertToNsec(long long sec, int nsec)
+{
+    return sec * NANO + nsec;
+}
+
 int main(void)
 {
     float **ha, **hb, **hc, **hd;   // host data
     float *da, *db, *dc;            // device data
     int i, j;
     int nbytes = N * N * sizeof(float);
+    long long elapsedTime;
+    struct timespec ts_start, ts_end;
 
     // allocate memory in host
     ha = createSquareMatOnHost(N);
@@ -110,16 +118,12 @@ int main(void)
     for (i = 0; i < N; i++)
         for (j = 0; j < N; j++)
             ha[i][j] = rand() % 10;
-    //printf("HA:\n");
-    //printSquareMat(ha, N);
 
     // set values in hb randomly
     srand(time(NULL));
     for (i = 0; i < N; i++)
         for (j = 0; j < N; j++)
             hb[i][j] = rand() % 10;
-    //printf("HB:\n");
-    //printSquareMat(hb, N);
 
     // copy from host to device
     checkCudaError(cudaMemcpy(da, ha[0], nbytes, cudaMemcpyHostToDevice));
@@ -127,19 +131,27 @@ int main(void)
     checkCudaError(cudaMemcpy(dc, hc[0], nbytes, cudaMemcpyHostToDevice));
 
     // multiply matrix on host
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
     multiplySquareMatOnHost(hd, ha, hb, N);
-    //printf("HD:\n");
-    //printSquareMat(hd, N);
+    clock_gettime(CLOCK_MONOTONIC, &ts_end);
+
+    // compute elapsed time
+    elapsedTime = convertToNsec(ts_end.tv_sec, ts_end.tv_nsec) - convertToNsec(ts_start.tv_sec, ts_start.tv_nsec);
+    printf("CPU time: %f\n", (float) elapsedTime / NANO);
 
     // multiply matrix on device
     int gridSize = (N*N/BLOCK_SIZE) + ((N*N)%BLOCK_SIZE>0?1:0);
     dim3 grid(gridSize), block(BLOCK_SIZE);
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
     multiplySquareSerializedMatOnDevice<<<grid, block>>>(dc, da, db, N);
+    clock_gettime(CLOCK_MONOTONIC, &ts_end);
+
+    // compute elapsed time
+    elapsedTime = convertToNsec(ts_end.tv_sec, ts_end.tv_nsec) - convertToNsec(ts_start.tv_sec, ts_start.tv_nsec);
+    printf("CUDA time: %f\n", (float) elapsedTime / NANO);
 
     // copy from device to host
     checkCudaError(cudaMemcpy(hc[0], dc, nbytes, cudaMemcpyDeviceToHost));
-    //printf("CUDA result:\n");
-    //printSquareMat(hc, N);
 
     // assertion
     for (i = 0; i < N; i++)
