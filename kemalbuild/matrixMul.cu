@@ -6,6 +6,7 @@
 
 #define N 1500
 #define TILE_SIZE 4
+#define MILI 1000
 #define NANO 1000000000
 
 void checkCudaError(cudaError_t errorCode)
@@ -95,8 +96,6 @@ int main(void)
     float *da, *db, *dc;            // device data
     int i, j;
     int nbytes = N * N * sizeof(float);
-    long long elapsedTime;
-    struct timespec ts_start, ts_end;
 
     // allocate memory in host
     ha = createSquareMatOnHost(N);
@@ -125,24 +124,30 @@ int main(void)
     checkCudaError(cudaMemcpy(db, hb[0], nbytes, cudaMemcpyHostToDevice));
 
     // multiply matrix on host
+    struct timespec ts_start, ts_end;
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
     multiplySquareMatOnHost(hd, ha, hb, N);
     clock_gettime(CLOCK_MONOTONIC, &ts_end);
 
     // compute elapsed time
-    elapsedTime = convertToNsec(ts_end) - convertToNsec(ts_start);
-    printf("CPU time: %f\n", (float) elapsedTime / NANO);
+    long long hostElapsedTime = convertToNsec(ts_end) - convertToNsec(ts_start);
+    printf("CPU time: %lf\n", (double) hostElapsedTime / NANO);
 
     // multiply matrix on device
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
     int gridSize = (N/TILE_SIZE) + (N%TILE_SIZE>0?1:0);
     dim3 grid(gridSize, gridSize), block(TILE_SIZE, TILE_SIZE);
-    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    cudaEventRecord(start, 0);
     multiplySquareSerializedMatOnDevice<<<grid, block>>>(dc, da, db, N);
-    clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
 
     // compute elapsed time
-    elapsedTime = convertToNsec(ts_end) - convertToNsec(ts_start);
-    printf("CUDA time: %f\n", (float) elapsedTime / NANO);
+    float deviceElapsedTime;
+    cudaEventElapsedTime(&deviceElapsedTime, start, stop);
+    printf("CUDA time: %f\n", deviceElapsedTime / MILI);
 
     // copy from device to host
     checkCudaError(cudaMemcpy(hc[0], dc, nbytes, cudaMemcpyDeviceToHost));
