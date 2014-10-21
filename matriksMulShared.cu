@@ -4,10 +4,9 @@
 #include <cstdlib>
 #include <ctime>
 #include <iostream>
-#define WIDTH 4
-#define TILE_WIDTH 2
+#define WIDTH 10
+#define TILE_WIDTH 4
 
-//Naive one block
 __global__ void matmulShared(float* matA, float* matB, float* matC){
     __shared__ float sA[TILE_WIDTH][TILE_WIDTH];
     __shared__ float sB[TILE_WIDTH][TILE_WIDTH];
@@ -16,17 +15,19 @@ __global__ void matmulShared(float* matA, float* matB, float* matC){
     unsigned int col = TILE_WIDTH*blockIdx.x + threadIdx.x ;
     unsigned int row = TILE_WIDTH*blockIdx.y + threadIdx.y ;
     float cVal = 0;
-    for (int m = 0 ; m<WIDTH/TILE_WIDTH ; m++ ) // m indicate number of phase
-    {
-        sA[threadIdx.y][threadIdx.x] =  matA[row*WIDTH + (m*TILE_WIDTH + threadIdx.x)]  ;
-        sB[threadIdx.y][threadIdx.x] =  matB[ ( m*TILE_WIDTH + threadIdx.y) * WIDTH + col] ;
-        __syncthreads() ; // for syncronizeing the threads
-        // Do for tile
-        for ( int k = 0; k<WIDTH ; k++ )
-            cVal += sA[threadIdx.x][k] * sB[k][threadIdx.y] ;
-        __syncthreads() ; // for syncronizeing the threads
-    } 
-	matC[row*WIDTH + col] = cVal;    
+    if(row < WIDTH && col < WIDTH){
+        for (int m = 0 ; m<WIDTH/TILE_WIDTH ; m++ ) // m indicate number of phase
+        {
+            sA[threadIdx.y][threadIdx.x] =  matA[row*WIDTH + (m*TILE_WIDTH + threadIdx.x)]  ;
+            sB[threadIdx.y][threadIdx.x] =  matB[ ( m*TILE_WIDTH + threadIdx.y) * WIDTH + col] ;
+            __syncthreads() ; // for syncronizeing the threads
+            // Do for tile
+            for ( int k = 0; k<WIDTH ; k++ )
+                cVal += sA[threadIdx.x][k] * sB[k][threadIdx.y] ;
+            __syncthreads() ; // for syncronizeing the threads
+        } 
+	    matC[row*WIDTH + col] = cVal;
+	}    
 } 
 
 void matriksMulShared(float* mA, float* mB, float* mC){
@@ -50,8 +51,8 @@ void matriksMulShared(float* mA, float* mB, float* mC){
 
     //allocate memory to device c
     cudaMalloc((void**)&c_d, size);
-
-    dim3 dimGrid(WIDTH/TILE_WIDTH, WIDTH/TILE_WIDTH);
+    int gridSize = (WIDTH/TILE_WIDTH) + (WIDTH%TILE_WIDTH>0?1:0);
+    dim3 dimGrid(gridSize, gridSize);
     dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
     
     matmulShared<<<dimGrid,dimBlock>>>(a_d,b_d,c_d);
